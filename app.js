@@ -1,7 +1,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const discursiveShort=['Aritmética e raciocínio lógico','Funções e inequações','Geometria plana','Geometria espacial','Geometria analítica','Estatística descritiva','Probabilidade','Análise combinatória','Sequências, PA e PG','Porcentagem','Trigonometria','Polinômios','Matrizes e sistemas','Matemática financeira','Teoria dos conjuntos','Programação linear'];
-let activeType='qualificacao', entries=[], cats=[], years=[], short=[], exams=[], selected, mode='map', zoom=1, openYears=new Set(),openQuestions=new Set();
+let activeType='qualificacao', entries=[], cats=[], years=[], short=[], exams=[], selected, mode='map', chosenYear=null, chosenQuestion=null, collapsed=false, zoom=1, openYears=new Set(),openQuestions=new Set();
 const questionKey=e=>`${e.examId||'discursivo-'+e.year}-${e.number}`;
 const editionName=e=>e.edition==='EU'?'Exame Único':(e.edition||'Exame discursivo');
 const questionLabel=e=>`${e.edition?editionName(e)+' · ':''}QUESTÃO ${String(e.number).padStart(2,'0')}`;
@@ -44,6 +44,15 @@ function uniqueQuestions(data){
 function actions(e){return `<div class="resource-actions"><a class="resource-link primary" href="${e.url}" target="_blank" rel="noopener" aria-label="Ver questão ${e.number} de ${editionName(e)} ${e.year}, página ${e.page}">Ver questão <span aria-hidden="true">↗</span><small>Página ${e.page} da prova</small></a><a class="resource-link answer" href="${e.answerUrl}" target="_blank" rel="noopener" aria-label="Ver gabarito da questão ${e.number} de ${editionName(e)} ${e.year}, página ${e.answerPage}">Ver gabarito <span aria-hidden="true">↗</span><small>Página ${e.answerPage} do gabarito</small></a></div>`}
 function leaf(e){return `<section class="node detail" aria-label="Detalhamento da questão ${e.number} de ${e.year}"><span class="role">${e.role.includes('secundário')?'Conteúdo secundário · múltiplos conteúdos':'Conteúdo principal'}</span><p>${esc(e.topics)}</p>${e.cancelled?'<p class="cancelled">Questão anulada</p>':''}${actions(e)}<small class="pdf-note">PDFs abrem em outra aba.</small></section>`}
 function render(){
+ const active=document.activeElement;
+ const attribute=['data-cat','data-year','data-q'].find(name=>active?.hasAttribute(name));
+ const focusSelector=attribute?`[${attribute}="${active.getAttribute(attribute)}"]`:null;
+ const scrolls=['.year-column .column-scroll','.question-column .column-scroll'].map(selector=>[selector,$(selector)?.scrollTop||0]);
+ renderContent();
+ for(const [selector,top] of scrolls){const panel=$(selector);if(panel)panel.scrollTop=top}
+ if(focusSelector)$(focusSelector)?.focus({preventScroll:true});
+}
+function renderContent(){
  const data=filtered(),all=uniqueQuestions(data),visibleCats=cats.filter(c=>data.some(e=>e.category===c));
  if(selected!==null&&!visibleCats.includes(selected))selected=null;
  $('#categories').innerHTML=cats.map((c,i)=>{const n=uniqueQuestions(data.filter(e=>e.category===c)).length;return `<button class="cat ${selected===c?'active':''}" data-cat="${i}" aria-pressed="${selected===c}" style="--accent:${['#146c65','#426684','#926621','#796190'][i%4]}" ${n?'':'hidden'}><span class="dot"></span><span>${short[i]}</span><span class="count">${n}</span></button>`}).join('');
@@ -61,26 +70,29 @@ function render(){
  $('#map-tab').classList.toggle('active',mode==='map');$('#list-tab').classList.toggle('active',mode==='list');$('#map-tab').setAttribute('aria-pressed',mode==='map');$('#list-tab').setAttribute('aria-pressed',mode==='list');
  if(!list.length){$('#graph').innerHTML='<div class="empty">Nenhuma questão encontrada.<br>Tente outro assunto ou use Limpar filtros.</div>';$('#list-view').innerHTML=$('#graph').innerHTML;return;}
  const ys=[...new Set(list.map(e=>e.year))].sort((a,b)=>b-a);
- $('#graph').innerHTML=`<ul class="tree"><li><div class="node root">${esc(title)}</div><ul>${ys.map(y=>{const entries=list.filter(e=>e.year===y).sort((a,b)=>(a.edition||'').localeCompare(b.edition||'')||a.number-b.number), expanded=openYears.has(y);return `<li><button class="node year" data-year="${y}" aria-expanded="${expanded}">${y}<small>${entries.length} ${entries.length===1?'questão':'questões'} ${expanded?'−':'+'}</small></button>${expanded?`<ul>${entries.map(e=>{const key=questionKey(e),expandedQ=openQuestions.has(key);return `<li><button class="node question ${e.role.includes('secundário')?'secondary':''}" data-q="${key}" aria-expanded="${expandedQ}"><b>${esc(questionLabel(e))} ${expandedQ?'−':'+'}</b>${esc(e.title)}</button>${expandedQ?`<ul><li>${leaf(e)}</li></ul>`:''}</li>`}).join('')}</ul>`:''}</li>`}).join('')}</ul></li></ul>`;
- $('#list-view').innerHTML=[...list].sort((a,b)=>b.year-a.year||(a.edition||'').localeCompare(b.edition||'')||a.number-b.number).map(e=>`<article class="result"><div class="meta">${e.year} · ${esc(questionLabel(e))} · ${e.role.includes('secundário')?'CONTEÚDO SECUNDÁRIO':'CONTEÚDO PRINCIPAL'}</div>${selected===null?`<p class="result-category">${esc(short[cats.indexOf(e.category)])}</p>`:''}<h3>${esc(e.title)}</h3><p>${esc(e.topics)}</p>${e.cancelled?'<p class="cancelled">Questão anulada</p>':''}${actions(e)}</article>`).join('');applyZoom();
+ if(!ys.includes(chosenYear))chosenYear=ys[0];
+ const yearQuestions=list.filter(e=>e.year===chosenYear).sort((a,b)=>(a.edition||'').localeCompare(b.edition||'')||a.number-b.number);
+ if(!yearQuestions.some(e=>questionKey(e)===chosenQuestion))chosenQuestion=questionKey(yearQuestions[0]);
+ const current=yearQuestions.find(e=>questionKey(e)===chosenQuestion);
+ $('#reset').disabled=collapsed;
+ $('#graph').innerHTML=`<div class="study-columns">
+ <section class="year-column" aria-label="Anos"><h3>Anos</h3><div class="column-scroll">${ys.map(y=>`<button class="browse-year ${!collapsed&&y===chosenYear?'selected':''}" data-year="${y}" aria-pressed="${!collapsed&&y===chosenYear}"><span>${y}</span><small>${list.filter(e=>e.year===y).length}</small></button>`).join('')}</div></section>
+ <section class="question-column" aria-label="Questões"><h3>Questões${collapsed?'':` de ${chosenYear}`}</h3><div class="column-scroll">${collapsed?'<p class="empty">Selecione um ano.</p>':yearQuestions.map(e=>`<button class="browse-question ${questionKey(e)===chosenQuestion?'selected':''}" data-q="${questionKey(e)}" aria-pressed="${questionKey(e)===chosenQuestion}"><b>Questão ${String(e.number).padStart(2,'0')}</b><small>${esc(editionName(e))}</small></button>`).join('')}</div></section>
+ <section class="detail-column" aria-label="Detalhes"><h3>Detalhes</h3>${collapsed?'<p class="empty">Escolha uma questão para ver os detalhes.</p>':`<div class="question-detail"><p class="detail-meta">${current.year} · ${esc(editionName(current))} · Questão ${String(current.number).padStart(2,'0')}</p><h4>${esc(current.title)}</h4><p class="detail-topics">${esc(current.topics)}</p><p class="role">${current.role.includes('secundário')?'Conteúdo secundário':'Conteúdo principal'}</p>${current.cancelled?'<p class="cancelled">Questão anulada</p>':''}${actions(current)}<p class="pdf-note">PDFs abrem em outra aba.</p></div>`}</section></div>`;
+ $('#list-view').innerHTML=[...list].sort((a,b)=>b.year-a.year||(a.edition||'').localeCompare(b.edition||'')||a.number-b.number).map(e=>`<article class="result"><div class="meta">${e.year} · ${esc(questionLabel(e))} · ${e.role.includes('secundário')?'CONTEÚDO SECUNDÁRIO':'CONTEÚDO PRINCIPAL'}</div>${selected===null?`<p class="result-category">${esc(short[cats.indexOf(e.category)])}</p>`:''}<h3>${esc(e.title)}</h3><p>${esc(e.topics)}</p>${e.cancelled?'<p class="cancelled">Questão anulada</p>':''}${actions(e)}</article>`).join('');
 }
-const mobile=window.matchMedia('(max-width: 760px)');
-function applyZoom(){ $('#graph').style.zoom=mobile.matches?1:zoom;$('#zoom-label').textContent=Math.round(zoom*100)+'%'; }
-function selectCategory(index){selected=Number(index)===-1?null:cats[Number(index)];openYears.clear();openQuestions.clear();zoom=1;render();$('#viewport').scrollTo(0,0)}
+function selectCategory(index){selected=Number(index)===-1?null:cats[Number(index)];chosenYear=null;chosenQuestion=null;collapsed=false;render()}
 $('#categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b)selectCategory(b.dataset.cat)});
 $('#category-select').addEventListener('change',ev=>selectCategory(ev.target.value));
-mobile.addEventListener('change',applyZoom);
-$('#graph').addEventListener('click',ev=>{const y=ev.target.closest('[data-year]'),q=ev.target.closest('[data-q]');if(y){const key=Number(y.dataset.year);openYears.has(key)?openYears.delete(key):openYears.add(key)}if(q){const key=q.dataset.q;openQuestions.has(key)?openQuestions.delete(key):openQuestions.add(key)}if(y||q){render(); const selector=y?`[data-year="${y.dataset.year}"]`:`[data-q="${q.dataset.q}"]`;const replacement=$('#graph').querySelector(selector);replacement?.focus({preventScroll:true})}});
+$('#graph').addEventListener('click',ev=>{const y=ev.target.closest('[data-year]'),q=ev.target.closest('[data-q]');if(y){chosenYear=Number(y.dataset.year);chosenQuestion=null;collapsed=false}if(q){chosenQuestion=q.dataset.q}if(y||q){render();$('#graph').querySelector(y?`[data-year="${chosenYear}"]`:`[data-q="${chosenQuestion}"]`)?.focus({preventScroll:true})}});
 $('#map-tab').onclick=()=>{mode='map';render()};$('#list-tab').onclick=()=>{mode='list';render()};
-function filterChanged(){selected=null;openQuestions.clear();openYears=new Set(filtered().map(e=>e.year));render()}
+function filterChanged(){selected=null;chosenYear=null;chosenQuestion=null;collapsed=false;openQuestions.clear();openYears=new Set(filtered().map(e=>e.year));render()}
 $('#search').addEventListener('input',filterChanged);$('#year').addEventListener('change',filterChanged);$('#edition').addEventListener('change',filterChanged);
-$('#reset').onclick=()=>{openYears.clear();openQuestions.clear();render();$('#viewport').scrollTo(0,0)};
+$('#reset').onclick=()=>{collapsed=true;render()};
 $('#show-all').onclick=()=>selectCategory(-1);
-$('#clear-filters').onclick=()=>{selected=null;$('#year').value='';$('#edition').value='';$('#search').value='';openYears=new Set([years[0]]);openQuestions.clear();zoom=1;render();$('#viewport').scrollTo(0,0)};
-$('#plus').onclick=()=>{zoom=Math.min(1.3,zoom+.1);applyZoom()};$('#minus').onclick=()=>{zoom=Math.max(.4,zoom-.1);applyZoom()};$('#fit').onclick=()=>{const g=$('#graph'),v=$('#viewport');zoom=1;applyZoom();zoom=Math.max(.4,Math.min(1,(v.clientWidth-20)/g.scrollWidth,(v.clientHeight-20)/g.scrollHeight));applyZoom();v.scrollTo(0,0)};
-
+$('#clear-filters').onclick=()=>{chosenYear=null;chosenQuestion=null;collapsed=false;selected=null;$('#year').value='';$('#edition').value='';$('#search').value='';openYears=new Set([years[0]]);openQuestions.clear();zoom=1;render();$('#viewport').scrollTo(0,0)};
 function switchExam(type){
- activeType=type;
+ activeType=type;chosenYear=null;chosenQuestion=null;collapsed=false;
  entries=type==='qualificacao'?QUALIFICATION.entries:ENTRIES;
  cats=[...new Set(entries.map(e=>e.category))];
  const labels=new Map(cats.map((c,i)=>[c,type==='discursivo'?discursiveShort[i]:c]));
