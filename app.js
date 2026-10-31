@@ -46,11 +46,11 @@ function leaf(e){return `<section class="node detail" aria-label="Detalhamento d
 function render(){
  const data=filtered(),all=uniqueQuestions(data),visibleCats=cats.filter(c=>data.some(e=>e.category===c));
  if(selected!==null&&!visibleCats.includes(selected))selected=null;
- $('#categories').innerHTML=`<button class="cat all-content ${selected===null?'active':''}" data-cat="-1" aria-pressed="${selected===null}"><span>Todos os conteúdos</span><span class="count">${all.length}</span></button>`+cats.map((c,i)=>{const n=uniqueQuestions(data.filter(e=>e.category===c)).length;return `<button class="cat ${selected===c?'active':''}" data-cat="${i}" aria-pressed="${selected===c}" style="--accent:${['#146c65','#426684','#926621','#796190'][i%4]}" ${n?'':'hidden'}><span class="dot"></span><span>${short[i]}</span><span class="count">${n}</span></button>`}).join('');
- $('#category-select').innerHTML=`<option value="-1" ${selected===null?'selected':''}>Todos os conteúdos</option>`+visibleCats.map(c=>`<option value="${cats.indexOf(c)}" ${c===selected?'selected':''}>${esc(short[cats.indexOf(c)])}</option>`).join('');
+ $('#categories').innerHTML=cats.map((c,i)=>{const n=uniqueQuestions(data.filter(e=>e.category===c)).length;return `<button class="cat ${selected===c?'active':''}" data-cat="${i}" aria-pressed="${selected===c}" style="--accent:${['#146c65','#426684','#926621','#796190'][i%4]}" ${n?'':'hidden'}><span class="dot"></span><span>${short[i]}</span><span class="count">${n}</span></button>`}).join('');
+ $('#category-select').innerHTML=`<option value="-1" ${selected===null?'selected':''} disabled>Escolha um conteúdo</option>`+visibleCats.map(c=>`<option value="${cats.indexOf(c)}" ${c===selected?'selected':''}>${esc(short[cats.indexOf(c)])}</option>`).join('');
  $('#category-select').disabled=!visibleCats.length;
  const list=selected===null?all:uniqueQuestions(data.filter(e=>e.category===selected));
- const searching=!!$('#search').value.trim(),title=selected===null?(searching?'Resultados da busca':'Todos os conteúdos'):short[cats.indexOf(selected)];
+ const searching=!!$('#search').value.trim(),title=selected===null?(searching?'Resultados da busca':'Questões encontradas'):short[cats.indexOf(selected)];
  $('#selected-title').textContent=title;
  $('#result-count').textContent=`${list.length} ${list.length===1?'questão':'questões'}${selected!==null?` de ${all.length} encontradas`:''} · ${activeType==='qualificacao'?'Qualificação':'Discursivo'}`;
  $('#show-all').hidden=selected===null;
@@ -83,7 +83,9 @@ function switchExam(type){
  activeType=type;
  entries=type==='qualificacao'?QUALIFICATION.entries:ENTRIES;
  cats=[...new Set(entries.map(e=>e.category))];
- short=type==='discursivo'?discursiveShort:cats;
+ const labels=new Map(cats.map((c,i)=>[c,type==='discursivo'?discursiveShort[i]:c]));
+ cats.sort((a,b)=>uniqueQuestions(entries.filter(e=>e.category===b)).length-uniqueQuestions(entries.filter(e=>e.category===a)).length||a.localeCompare(b,'pt-BR'));
+ short=cats.map(c=>labels.get(c));
  years=[...new Set(entries.map(e=>e.year))].sort((a,b)=>b-a);
  exams=type==='qualificacao'?QUALIFICATION.exams:years.map(year=>({year,url:`provas/uerj-${year}.pdf`,answerUrl:`gabaritos/uerj-${year}-gabarito.pdf`}));
  selected=cats[0];openYears=new Set([years[0]]);openQuestions.clear();zoom=1;
