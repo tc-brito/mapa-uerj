@@ -53,9 +53,31 @@ function switchExam(type){
  $('.stats').innerHTML=`<div><strong>${count}</strong><span>questões</span></div><div><strong>${cats.length}</strong><span>conteúdos</span></div><div><strong>${exams.length}</strong><span>provas</span></div>`;
  $('.aside-title span').textContent=cats.length;
  $('#exam-context').textContent=type==='qualificacao'?'1º e 2º exames de qualificação · inclui os exames únicos de 2021 a 2023.':'Questões discursivas de Matemática.';
- $('#library-context').textContent=type==='qualificacao'?'Qualificação e Exame Único · 2012–2027':'Exame discursivo · 2012–2020 e 2024–2026';
- $('#exams').innerHTML=[...exams].sort((a,b)=>b.year-a.year||(a.edition||'').localeCompare(b.edition||'')).map(e=>`<article class="exam"><div class="exam-title"><b>${e.year}</b><small>${editionName(e)}</small></div><div class="exam-links"><a href="${e.url}" target="_blank" rel="noopener" aria-label="Abrir prova de ${editionName(e)} ${e.year}">Prova <span aria-hidden="true">↗</span></a><a href="${e.answerUrl}" target="_blank" rel="noopener" aria-label="Abrir gabarito de ${editionName(e)} ${e.year}">Gabarito <span aria-hidden="true">↗</span></a></div></article>`).join('');
  render();$('#viewport').scrollTo(0,0);
 }
 document.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',()=>switchExam(b.dataset.type)));
+
+// A biblioteca reúne o acervo completo; os filtros acima pertencem ao mapa.
+function renderLibrary(){
+ const discursiveYears=[...new Set(ENTRIES.map(e=>e.year))];
+ const library=[...QUALIFICATION.exams,...discursiveYears.map(year=>({
+  year,edition:'discursivo',url:`provas/uerj-${year}.pdf`,answerUrl:`gabaritos/uerj-${year}-gabarito.pdf`
+ }))];
+ const libraryYears=[...new Set(library.map(e=>e.year))].sort((a,b)=>b-a);
+ const names={'1º EQ':'1º EQ','2º EQ':'2º EQ','EU':'Exame Único','discursivo':'Exame Discursivo'};
+ const order={'1º EQ':0,'2º EQ':1,'EU':0,'discursivo':2};
+ $('#library-context').textContent=`${libraryYears.at(-1)}–${libraryYears[0]}`;
+ $('#exams').innerHTML=libraryYears.map(year=>{
+  const editions=library.filter(e=>e.year===year).sort((a,b)=>order[a.edition]-order[b.edition]);
+  return `<article class="year-group" aria-labelledby="library-year-${year}">
+   <h3 id="library-year-${year}">${year}</h3>
+   <ul class="edition-list">${editions.map(e=>`<li class="edition-row">
+    <span class="edition-name">${names[e.edition]}</span>
+    <a class="edition-link" href="${e.url}" target="_blank" rel="noopener noreferrer" aria-label="Prova — ${names[e.edition]} ${year} (PDF, abre em outra aba)">Prova</a>
+    <a class="edition-link" href="${e.answerUrl}" target="_blank" rel="noopener noreferrer" aria-label="Gabarito — ${names[e.edition]} ${year} (PDF, abre em outra aba)">Gabarito</a>
+   </li>`).join('')}</ul>
+  </article>`;
+ }).join('');
+}
+renderLibrary();
 switchExam(activeType);
