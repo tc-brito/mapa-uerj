@@ -139,7 +139,7 @@ renderLibrary();
 switchExam(activeType);
 
 const contrastButton=$('#contrast-toggle');
-function setContrast(enabled){document.documentElement.classList.toggle('high-contrast',enabled);contrastButton.setAttribute('aria-pressed',String(enabled));contrastButton.textContent=enabled?'Desativar alto contraste':'Habilitar alto contraste';try{localStorage.setItem('uerj-high-contrast',String(enabled))}catch{}}
+function setContrast(enabled){document.documentElement.classList.toggle('high-contrast',enabled);contrastButton.setAttribute('aria-pressed',String(enabled));const label=enabled?'Desativar alto contraste':'Habilitar alto contraste';contrastButton.setAttribute('aria-label',label);contrastButton.title=label;try{localStorage.setItem('uerj-high-contrast',String(enabled))}catch{}}
 let savedContrast=false;try{savedContrast=localStorage.getItem('uerj-high-contrast')==='true'}catch{}
 setContrast(savedContrast);
 contrastButton.onclick=()=>setContrast(!document.documentElement.classList.contains('high-contrast'));

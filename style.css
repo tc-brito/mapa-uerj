@@ -26,3 +26,6 @@ footer{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}footer p{margin:0
 .high-contrast button:hover,.high-contrast .cat.active,.high-contrast .selected,.high-contrast .tabs .active,.high-contrast .exam-switch .active{background:#ffed00;color:#000;border-color:#ffed00}
 .high-contrast .selected small{color:#000}.high-contrast .resource-link.primary,.high-contrast .resource-link.answer{background:#000;color:#ffed00;border:2px solid #ffed00}.high-contrast input::placeholder{color:#fff}.high-contrast .search input{color:#fff;caret-color:#ffed00}.high-contrast #back-top{background:#ffed00;color:#000}.high-contrast ::selection{background:#ffed00;color:#000}
 @media(max-width:800px){.filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.filters select{min-width:0;width:100%}.search{min-width:0}}
+
+/* Controle de contraste por ícone, com alvo de toque acessível. */
+#contrast-toggle{width:44px;height:44px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;padding:9px}#contrast-toggle svg{display:block}.sidebar .aside-title{margin-top:24px}
