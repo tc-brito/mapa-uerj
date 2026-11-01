@@ -1,9 +1,9 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const discursiveShort=['Aritmética e raciocínio lógico','Funções e inequações','Geometria plana','Geometria espacial','Geometria analítica','Estatística descritiva','Probabilidade','Análise combinatória','Sequências, PA e PG','Porcentagem','Trigonometria','Polinômios','Matrizes e sistemas','Matemática financeira','Teoria dos conjuntos','Programação linear'];
-let activeType='qualificacao', entries=[], cats=[], years=[], short=[], exams=[], selected, mode='map', chosenYear=null, chosenQuestion=null, collapsed=false, zoom=1, openYears=new Set(),openQuestions=new Set();
+let activeType='qualificacao', entries=[], cats=[], years=[], short=[], exams=[], selected, mode='map', browsing=false, chosenYear=null, chosenQuestion=null, collapsed=false, zoom=1, openYears=new Set(),openQuestions=new Set();
 const questionKey=e=>`${e.examId||'discursivo-'+e.year}-${e.number}`;
-const editionName=e=>e.edition==='EU'?'Exame Único':(e.edition||'Exame discursivo');
+const editionName=e=>e.edition==='EU'?'Exame Único':(e.edition?e.edition.replace('EQ','Exame de Qualificação'):'Exame Discursivo');
 const questionLabel=e=>`${e.edition?editionName(e)+' · ':''}QUESTÃO ${String(e.number).padStart(2,'0')}`;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -25,7 +25,7 @@ function indexedWords(e){
  if(!searchIndex.has(e)){
   // Parenthetical lists describe an umbrella category, not every question in it.
   const category=e.category==='Probabilidade e Análise Combinatória'?'':e.category.replace(/\([^)]*\)/g,'');
-  const words=searchWords([category,e.title,e.topics,e.year,editionName(e),'Questão '+String(e.number).padStart(2,'0'),'Questão '+e.number].join(' '));
+  const words=searchWords([category,e.title,e.topics,e.year,e.edition,editionName(e),'Questão '+String(e.number).padStart(2,'0'),'Questão '+e.number].join(' '));
   if(words.some(w=>['quadratica','exponencial','logaritmo','afim'].includes(w)))words.push('funcao');
   searchIndex.set(e,words);
  }
@@ -64,35 +64,36 @@ function renderContent(){
  $('#result-count').textContent=`${list.length} ${list.length===1?'questão':'questões'}${selected!==null?` de ${all.length} encontradas`:''} · ${activeType==='qualificacao'?'Qualificação':'Discursivo'}`;
  $('#show-all').hidden=selected===null;
  $('#show-all').textContent=`Exibir todos os resultados (${all.length})`;
- $('#clear-filters').disabled=!searching&&!$('#year').value&&!$('#edition').value&&selected===null;
+ $('#clear-filters').disabled=false;
  $('#map-view').hidden=mode!=='map';$('#list-view').hidden=mode!=='list';$('#reset').hidden=mode!=='map';
- $('#reset').disabled=!openYears.size&&!openQuestions.size;
+ $('#reset').disabled=false;
  $('#map-tab').classList.toggle('active',mode==='map');$('#list-tab').classList.toggle('active',mode==='list');$('#map-tab').setAttribute('aria-pressed',mode==='map');$('#list-tab').setAttribute('aria-pressed',mode==='list');
+ if(!browsing){$('#selected-title').textContent='Escolha um conteúdo';$('#result-count').textContent='Ou busque um assunto para encontrar questões.';$('#show-all').hidden=true;$('#graph').innerHTML='<p class="empty">Selecione um conteúdo ou use a busca para começar.</p>';$('#list-view').innerHTML=$('#graph').innerHTML;return;}
  if(!list.length){$('#graph').innerHTML='<div class="empty">Nenhuma questão encontrada.<br>Tente outro assunto ou use Limpar filtros.</div>';$('#list-view').innerHTML=$('#graph').innerHTML;return;}
  const ys=[...new Set(list.map(e=>e.year))].sort((a,b)=>b-a);
  if(!ys.includes(chosenYear))chosenYear=ys[0];
  const yearQuestions=list.filter(e=>e.year===chosenYear).sort((a,b)=>(a.edition||'').localeCompare(b.edition||'')||a.number-b.number);
  if(!yearQuestions.some(e=>questionKey(e)===chosenQuestion))chosenQuestion=questionKey(yearQuestions[0]);
  const current=yearQuestions.find(e=>questionKey(e)===chosenQuestion);
- $('#reset').disabled=collapsed;
+ $('#reset').disabled=false;
  $('#graph').innerHTML=`<div class="study-columns">
  <section class="year-column" aria-label="Anos"><h3>Anos</h3><div class="column-scroll">${ys.map(y=>`<button class="browse-year ${!collapsed&&y===chosenYear?'selected':''}" data-year="${y}" aria-pressed="${!collapsed&&y===chosenYear}"><span>${y}</span><small>${list.filter(e=>e.year===y).length}</small></button>`).join('')}</div></section>
  <section class="question-column" aria-label="Questões"><h3>Questões${collapsed?'':` de ${chosenYear}`}</h3><div class="column-scroll">${collapsed?'<p class="empty">Selecione um ano.</p>':yearQuestions.map(e=>`<button class="browse-question ${questionKey(e)===chosenQuestion?'selected':''}" data-q="${questionKey(e)}" aria-pressed="${questionKey(e)===chosenQuestion}"><b>Questão ${String(e.number).padStart(2,'0')}</b><small>${esc(editionName(e))}</small></button>`).join('')}</div></section>
  <section class="detail-column" aria-label="Detalhes"><h3>Detalhes</h3>${collapsed?'<p class="empty">Escolha uma questão para ver os detalhes.</p>':`<div class="question-detail"><p class="detail-meta">${current.year} · ${esc(editionName(current))} · Questão ${String(current.number).padStart(2,'0')}</p><h4>${esc(current.title)}</h4><p class="detail-topics">${esc(current.topics)}</p><p class="role">${current.role.includes('secundário')?'Conteúdo secundário':'Conteúdo principal'}</p>${current.cancelled?'<p class="cancelled">Questão anulada</p>':''}${actions(current)}<p class="pdf-note">PDFs abrem em outra aba.</p></div>`}</section></div>`;
  $('#list-view').innerHTML=[...list].sort((a,b)=>b.year-a.year||(a.edition||'').localeCompare(b.edition||'')||a.number-b.number).map(e=>`<article class="result"><div class="meta">${e.year} · ${esc(questionLabel(e))} · ${e.role.includes('secundário')?'CONTEÚDO SECUNDÁRIO':'CONTEÚDO PRINCIPAL'}</div>${selected===null?`<p class="result-category">${esc(short[cats.indexOf(e.category)])}</p>`:''}<h3>${esc(e.title)}</h3><p>${esc(e.topics)}</p>${e.cancelled?'<p class="cancelled">Questão anulada</p>':''}${actions(e)}</article>`).join('');
 }
-function selectCategory(index){selected=Number(index)===-1?null:cats[Number(index)];chosenYear=null;chosenQuestion=null;collapsed=false;render()}
+function selectCategory(index){browsing=true;selected=Number(index)===-1?null:cats[Number(index)];chosenYear=null;chosenQuestion=null;collapsed=false;render()}
 $('#categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b)selectCategory(b.dataset.cat)});
 $('#category-select').addEventListener('change',ev=>selectCategory(ev.target.value));
 $('#graph').addEventListener('click',ev=>{const y=ev.target.closest('[data-year]'),q=ev.target.closest('[data-q]');if(y){chosenYear=Number(y.dataset.year);chosenQuestion=null;collapsed=false}if(q){chosenQuestion=q.dataset.q}if(y||q){render();$('#graph').querySelector(y?`[data-year="${chosenYear}"]`:`[data-q="${chosenQuestion}"]`)?.focus({preventScroll:true})}});
 $('#map-tab').onclick=()=>{mode='map';render()};$('#list-tab').onclick=()=>{mode='list';render()};
-function filterChanged(){selected=null;chosenYear=null;chosenQuestion=null;collapsed=false;openQuestions.clear();openYears=new Set(filtered().map(e=>e.year));render()}
+function filterChanged(){browsing=true;selected=null;chosenYear=null;chosenQuestion=null;collapsed=false;openQuestions.clear();openYears=new Set(filtered().map(e=>e.year));render()}
 $('#search').addEventListener('input',filterChanged);$('#year').addEventListener('change',filterChanged);$('#edition').addEventListener('change',filterChanged);
 $('#reset').onclick=()=>{collapsed=true;render()};
 $('#show-all').onclick=()=>selectCategory(-1);
-$('#clear-filters').onclick=()=>{chosenYear=null;chosenQuestion=null;collapsed=false;selected=null;$('#year').value='';$('#edition').value='';$('#search').value='';openYears=new Set([years[0]]);openQuestions.clear();zoom=1;render();$('#viewport').scrollTo(0,0)};
+$('#clear-filters').onclick=()=>{browsing=false;chosenYear=null;chosenQuestion=null;collapsed=false;selected=null;$('#year').value='';$('#edition').value='';$('#search').value='';openYears=new Set([years[0]]);openQuestions.clear();zoom=1;render();$('#viewport').scrollTo(0,0)};
 function switchExam(type){
- activeType=type;chosenYear=null;chosenQuestion=null;collapsed=false;
+ browsing=false;activeType=type;chosenYear=null;chosenQuestion=null;collapsed=false;
  entries=type==='qualificacao'?QUALIFICATION.entries:ENTRIES;
  cats=[...new Set(entries.map(e=>e.category))];
  const labels=new Map(cats.map((c,i)=>[c,type==='discursivo'?discursiveShort[i]:c]));
@@ -100,7 +101,7 @@ function switchExam(type){
  short=cats.map(c=>labels.get(c));
  years=[...new Set(entries.map(e=>e.year))].sort((a,b)=>b-a);
  exams=type==='qualificacao'?QUALIFICATION.exams:years.map(year=>({year,url:`provas/uerj-${year}.pdf`,answerUrl:`gabaritos/uerj-${year}-gabarito.pdf`}));
- selected=cats[0];openYears=new Set([years[0]]);openQuestions.clear();zoom=1;
+ selected=null;openYears=new Set([years[0]]);openQuestions.clear();zoom=1;
  $('#search').value='';$('#year').innerHTML='<option value="">Todos os anos</option>'+years.map(y=>`<option>${y}</option>`).join('');
  $('#edition').value='';$('#edition').hidden=type==='discursivo';
  document.querySelectorAll('[data-type]').forEach(b=>{b.classList.toggle('active',b.dataset.type===type);b.setAttribute('aria-pressed',b.dataset.type===type)});
@@ -119,7 +120,7 @@ function renderLibrary(){
   year,edition:'discursivo',url:`provas/uerj-${year}.pdf`,answerUrl:`gabaritos/uerj-${year}-gabarito.pdf`
  }))];
  const libraryYears=[...new Set(library.map(e=>e.year))].sort((a,b)=>b-a);
- const names={'1º EQ':'1º EQ','2º EQ':'2º EQ','EU':'Exame Único','discursivo':'Exame Discursivo'};
+ const names={'1º EQ':'1º Exame de Qualificação','2º EQ':'2º Exame de Qualificação','EU':'Exame Único','discursivo':'Exame Discursivo'};
  const order={'1º EQ':0,'2º EQ':1,'EU':0,'discursivo':2};
  $('#library-context').textContent=`${libraryYears.at(-1)}–${libraryYears[0]}`;
  $('#exams').innerHTML=libraryYears.map(year=>{
@@ -136,3 +137,10 @@ function renderLibrary(){
 }
 renderLibrary();
 switchExam(activeType);
+
+const contrastButton=$('#contrast-toggle');
+function setContrast(enabled){document.documentElement.classList.toggle('high-contrast',enabled);contrastButton.setAttribute('aria-pressed',String(enabled));contrastButton.textContent=enabled?'Desativar alto contraste':'Habilitar alto contraste';try{localStorage.setItem('uerj-high-contrast',String(enabled))}catch{}}
+let savedContrast=false;try{savedContrast=localStorage.getItem('uerj-high-contrast')==='true'}catch{}
+setContrast(savedContrast);
+contrastButton.onclick=()=>setContrast(!document.documentElement.classList.contains('high-contrast'));
+$('#back-top').onclick=()=>{window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});$('.brand').focus({preventScroll:true})};
